@@ -4,6 +4,7 @@ const qs = require('qs')
 
 const ApplicationId = '71A3AD0A-CF46-4CCF-B473-FC7FE5BC4592'
 const BaseVehicleApiUrl = 'https://usapi.cv.ford.com/api/vehicles'
+const UpdateFrequencySecs = 60;
 
 let Service, Characteristic
 
@@ -25,10 +26,17 @@ class VehicleAccessory {
         .setCharacteristic(Characteristic.Manufacturer, 'Ford')
 		.setCharacteristic(Characteristic.Model, 'Vehicle')
         .setCharacteristic(Characteristic.SerialNumber, this.config.vin)
+	
+	const getCallback = util.callbackify(this.getRemoteStartStatus.bind(this));
+	const setCallback = util.callbackify(this.setRemoteStartStatusHandler.bind(this));
 
-    this.service.getCharacteristic(Characteristic.On)
-      .on('get', (callback) => util.callbackify(this.getRemoteStartStatusHandler.bind(this))(callback))
-      .on('set', (value, callback) => util.callbackify(this.setRemoteStartStatusHandler.bind(this))(value, callback))
+    const onCharacteristic = this.service.getCharacteristic(Characteristic.On)
+      .on('get', (callback) => getCallback(callback))
+      .on('set', (value, callback) => setCallback(value, callback))
+	
+	setInterval(() => {
+		onCharacteristic.getValue()
+	}, UpdateFrequencySecs * 1000)
 
     return [informationService, this.service]
   }
@@ -74,25 +82,18 @@ class VehicleAccessory {
 			  'application-id': ApplicationId,
 			  'auth-token': await this.getAuthorizationToken()
 		  }
-	  });
+	  })
   }
 
   async setRemoteStartStatusHandler(desiredState) {
-	this.log(`Called setRemoteStartStatusHandler with intent to ${desiredState ? 'start' : 'stop' } remote start`);
-	this.log('--> Checking current remote start status');
-	if (desiredState != await this.getRemoteStartStatusHandler())
+	this.log(`Called setRemoteStartStatusHandler with intent to ${desiredState ? 'start' : 'stop' } remote start`)
+	this.log('--> Checking current remote start status')
+	if (desiredState != await this.getRemoteStartStatus())
 	{
-		await this.remoteControlEngine(desiredState);
-		this.log(`--> Vehicle remote start ${desiredState ? 'started' : 'stopped' }`);
+		await this.remoteControlEngine(desiredState)
+		this.log(`--> Vehicle remote start ${desiredState ? 'started' : 'stopped' }`)
 	} else {
-		this.log('--> Vehicle already matches the desired state');
+		this.log('--> Vehicle already matches the desired state')
 	}
-  }
-
-  async getRemoteStartStatusHandler() {
-	this.log('Called getRemoteStartStatusHandler');
-	const isStarted = await this.getRemoteStartStatus();
-    this.log(`--> Current status: engine ${isStarted ? 'remote started' : 'not remote started'}`)
-    return isStarted;
   }
 }
