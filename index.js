@@ -27,18 +27,24 @@ class VehicleAccessory {
 		.setCharacteristic(Characteristic.Model, 'Vehicle')
         .setCharacteristic(Characteristic.SerialNumber, this.config.vin)
 	
-	const getCallback = util.callbackify(this.getRemoteStartStatus.bind(this));
-	const setCallback = util.callbackify(this.setRemoteStartStatusHandler.bind(this));
+	const getCallback = util.callbackify(this.getRemoteStartStatus.bind(this))
+	const setCallback = util.callbackify(this.setRemoteStartStatusHandler.bind(this))
 
-    const onCharacteristic = this.service.getCharacteristic(Characteristic.On)
+    this.onCharacteristic = this.service.getCharacteristic(Characteristic.On)
       .on('get', (callback) => getCallback(callback))
       .on('set', (value, callback) => setCallback(value, callback))
 	
-	setInterval(() => {
-		onCharacteristic.getValue()
-	}, UpdateFrequencySecs * 1000)
-
     return [informationService, this.service]
+  }
+  
+  setOrResetTimeout() {
+	if (this.timeout)
+	{
+		clearTimeout(this.timeout)
+	}
+	this.timeout = setTimeout(() => {
+		this.onCharacteristic.getValue()
+	}, UpdateFrequencySecs * 1000)
   }
   
   async getAuthorizationToken() {
@@ -64,6 +70,7 @@ class VehicleAccessory {
   }
   
   async getRemoteStartStatus() {
+	  this.setOrResetTimeout()
 	  return (await axios({
 		  method: 'GET',
 		  url: `${BaseVehicleApiUrl}/v4/${this.config.vin}/status`,
