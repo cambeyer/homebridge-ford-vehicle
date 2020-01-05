@@ -46,6 +46,13 @@ class VehicleAccessory {
 	}, UpdateFrequencySecs * 1000)
   }
   
+  async getCommonHeaders() {
+	return ({
+		'application-id': ApplicationId,
+		'auth-token': await this.getAuthorizationToken()
+	});
+  }
+  
   async getAuthorizationToken() {
 	return (await axios({
 		method: 'PUT',
@@ -73,10 +80,7 @@ class VehicleAccessory {
 	  this.remoteStartStatus = (await axios({
 		  method: 'GET',
 		  url: `${BaseVehicleApiUrl}/v4/${this.config.vin}/status`,
-		  headers: {
-			  'application-id': ApplicationId,
-			  'auth-token': await this.getAuthorizationToken()
-		  }
+		  headers: await this.getCommonHeaders()
 	  })).data.vehiclestatus.remoteStartStatus.value !== 0
 	  return this.remoteStartStatus
   }
@@ -86,10 +90,7 @@ class VehicleAccessory {
 	  const command = (await axios({
 		  method: start ? 'PUT' : 'DELETE',
 		  url: `${BaseVehicleApiUrl}/v2/${this.config.vin}/engine/start`,
-		  headers: {
-			  'application-id': ApplicationId,
-			  'auth-token': await this.getAuthorizationToken()
-		  }
+		  headers: await this.getCommonHeaders()
 	  })).data.commandId
 	  let status
 	  do {
@@ -103,11 +104,8 @@ class VehicleAccessory {
   async checkCommandStatus(command) {
 	  return (await axios({
 		  method: 'GET',
-		  headers: {
-			  'application-id': ApplicationId,
-			  'auth-token': await this.getAuthorizationToken()
-		  },
-		  url: `${BaseVehicleApiUrl}/${this.config.vin}/engine/start/${command}`
+		  url: `${BaseVehicleApiUrl}/${this.config.vin}/engine/start/${command}`,
+		  headers: await this.getCommonHeaders()
 	  })).data.status
   }
 
