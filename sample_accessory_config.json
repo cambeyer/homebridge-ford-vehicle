@@ -1,0 +1,7 @@
+{
+  "accessory": "FordVehicle",
+  "name": "Ford Escape",
+  "username": "<FORD_PASS_USERNAME>",
+  "password": "<FORD_PASS_PASSWORD>",
+  "vin": "<VEHICLE_VIN>"
+}
