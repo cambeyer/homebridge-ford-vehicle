@@ -4,7 +4,7 @@ const qs = require('qs')
 
 const ApplicationId = '71A3AD0A-CF46-4CCF-B473-FC7FE5BC4592'
 const BaseVehicleApiUrl = 'https://usapi.cv.ford.com/api/vehicles'
-const UpdateFrequencySecs = 60;
+const UpdateFrequencySecs = 60
 
 let Service, Characteristic
 
