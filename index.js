@@ -1,10 +1,12 @@
 const util = require('util')
 const axios = require('axios')
 const qs = require('qs')
+const delay = require('delay')
 
 const ApplicationId = '71A3AD0A-CF46-4CCF-B473-FC7FE5BC4592'
 const BaseVehicleApiUrl = 'https://usapi.cv.ford.com/api/vehicles'
 const UpdateFrequencySecs = 60
+const DelayBetweenCommandChecksSecs = 3
 
 let Service, Characteristic
 
@@ -33,15 +35,12 @@ class VehicleAccessory {
     this.onCharacteristic = this.service.getCharacteristic(Characteristic.On)
       .on('get', (callback) => getCallback(callback))
       .on('set', (value, callback) => setCallback(value, callback))
-	
+		
     return [informationService, this.service]
   }
   
   setOrResetTimeout() {
-	if (this.timeout)
-	{
-		clearTimeout(this.timeout)
-	}
+	clearTimeout(this.timeout)
 	this.timeout = setTimeout(() => {
 		this.onCharacteristic.getValue()
 	}, UpdateFrequencySecs * 1000)
@@ -71,7 +70,7 @@ class VehicleAccessory {
   
   async getRemoteStartStatus() {
 	  this.setOrResetTimeout()
-	  return (await axios({
+	  this.remoteStartStatus = (await axios({
 		  method: 'GET',
 		  url: `${BaseVehicleApiUrl}/v4/${this.config.vin}/status`,
 		  headers: {
@@ -79,25 +78,45 @@ class VehicleAccessory {
 			  'auth-token': await this.getAuthorizationToken()
 		  }
 	  })).data.vehiclestatus.remoteStartStatus.value !== 0
+	  return this.remoteStartStatus
   }
   
   async remoteControlEngine(start) {
-	  await axios({
+	  clearTimeout(this.timeout)
+	  const command = (await axios({
 		  method: start ? 'PUT' : 'DELETE',
 		  url: `${BaseVehicleApiUrl}/v2/${this.config.vin}/engine/start`,
 		  headers: {
 			  'application-id': ApplicationId,
 			  'auth-token': await this.getAuthorizationToken()
 		  }
-	  })
+	  })).data.commandId
+	  let status
+	  do {
+		  await delay(DelayBetweenCommandChecksSecs * 1000)
+		  this.log('Checking status of command')
+		  status = await this.checkCommandStatus(command)
+	  } while (status === 552)
+	  this.onCharacteristic.getValue()
+  }
+  
+  async checkCommandStatus(command) {
+	  return (await axios({
+		  method: 'GET',
+		  headers: {
+			  'application-id': ApplicationId,
+			  'auth-token': await this.getAuthorizationToken()
+		  },
+		  url: `${BaseVehicleApiUrl}/${this.config.vin}/engine/start/${command}`
+	  })).data.status
   }
 
   async setRemoteStartStatusHandler(desiredState) {
 	this.log(`Called setRemoteStartStatusHandler with intent to ${desiredState ? 'start' : 'stop' } remote start`)
-	this.log('--> Checking current remote start status')
-	if (desiredState != await this.getRemoteStartStatus())
+	if (desiredState != this.remoteStartStatus)
 	{
-		await this.remoteControlEngine(desiredState)
+		this.remoteStartStatus = desiredState
+		this.remoteControlEngine(desiredState)
 		this.log(`--> Vehicle remote start ${desiredState ? 'started' : 'stopped' }`)
 	} else {
 		this.log('--> Vehicle already matches the desired state')
